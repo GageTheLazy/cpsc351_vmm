@@ -6,6 +6,9 @@
 //  Copyright © 2020 William McCarthy. All rights reserved.
 //
 
+// Gage Dimapindan, CWID: 888017746
+// Virtual Memory Manager Project (CPSC 351)
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -14,8 +17,7 @@
 #define ARGC_ERROR 1
 #define FILE_ERROR 2
 #define BUFLEN 256
-#define FRAME_SIZE  256
-
+#define FRAME_SIZE 256
 
 //-------------------------------------------------------------------
 unsigned getpage(unsigned x) { return (0xff00 & x) >> 8; }
@@ -41,13 +43,28 @@ int main(int argc, const char* argv[]) {
   unsigned   logic_add;                  // read from file address.txt
   unsigned   virt_add, phys_add, value;  // read from file correct.txt
 
-  printf("ONLY READ FIRST 20 entries -- TODO: change to read all entries\n\n");
+
+
+  // printf("ONLY READ FIRST 20 entries -- TODO: change to read all entries\n\n");
+  printf("READ ALL ENTRIES\n\n");
 
   // not quite correct -- should search page table before creating a new entry
       //   e.g., address # 25 from addresses.txt will fail the assertion
       // TODO:  add page table code
       // TODO:  add TLB code
-  while (frame < 20) {
+
+      int pgTbl[256];
+      int TLBtable[16][2]; // 2 columns: 1 for page num, the other for frame num
+      int frameTable[FRAME_SIZE];
+
+      // opens BACKING_STORE.bin
+      FILE *fBS = fopen("BACKING_STORE.bin", "rb");
+      if (fBS == NULL) {
+        fprintf(stderr, "Could not open file: 'BACKING_STORE.bin'\n");
+        exit(FILE_ERROR);
+      }
+
+  while (frame < FRAME_SIZE) {
 
     fscanf(fcorr, "%s %s %d %s %s %d %s %d", buf, buf, &virt_add,
            buf, buf, &phys_add, buf, &value);  // read from file correct.txt
@@ -55,21 +72,23 @@ int main(int argc, const char* argv[]) {
     fscanf(fadd, "%d", &logic_add);  // read from file address.txt
     page   = getpage(  logic_add);
     offset = getoffset(logic_add);
-    
+
     physical_add = frame++ * FRAME_SIZE + offset;
-    
+
     assert(physical_add == phys_add);
+
+    // todo: read BACKING_STORE and confirm value matches read value from correct.txt
     
-    // todo: read BINARY_STORE and confirm value matches read value from correct.txt
-    
+
     printf("logical: %5u (page: %3u, offset: %3u) ---> physical: %5u -- passed\n", logic_add, page, offset, physical_add);
     if (frame % 5 == 0) { printf("\n"); }
   }
   fclose(fcorr);
   fclose(fadd);
-  
-  printf("ONLY READ FIRST 20 entries -- TODO: change to read all entries\n\n");
-  
+
+  // printf("ONLY READ FIRST 20 entries -- TODO: change to read all entries\n\n");
+    printf("READ ALL ENTRIES\n\n");
+
   printf("ALL logical ---> physical assertions PASSED!\n");
   printf("!!! This doesn't work passed entry 24 in correct.txt, because of a duplicate page table entry\n");
   printf("--- you have to implement the PTE and TLB part of this code\n");
