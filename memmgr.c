@@ -36,33 +36,35 @@ void getpage_offset(unsigned x) {
          (page << 8) | getoffset(x), page * 256 + offset);
 }
 
-int pgTbl[PAGE_SIZE];
-int pgFrames[PAGE_SIZE];
-int pgFaults = 0;
+int pgTbl[PAGE_SIZE];       // page table to hold page numbers
+int pgFrames[PAGE_SIZE];    // page table to hold frame numbers
+int pgFaults = 0;           // page faults
 
-int TLBtable[TLB_SIZE][2];
-int TLBHits = 0;
-int TLB_num_entry = 0;
+int TLBtable[TLB_SIZE][2];  // TLB table
+int TLBHits = 0;            // amount of TLB hits
+int TLB_num_entry = 0;      // tracks amount of entries in the TLB
 
-int phys_mem[TOTAL_FRAMES][FRAME_SIZE];
+int phys_mem[TOTAL_FRAMES][FRAME_SIZE];   // physical memor as 2D array
 
-int first_open_frame = 0;
-int first_open_pgTblIdx = 0;
+int first_open_frame = 0;   // tracks the first available frame
+int first_open_pgTblIdx = 0;    // tracks the first available page table entry
 
-signed char bs_buff[BUFLEN];
-signed char byte_val;
+signed char bs_buff[BUFLEN];    // buffer containing reads from BACKING_STORE.bin
+signed char byte_val;           // byte value in memory
 
 FILE *fBS;
 
+// inserts a page num and frame num into TLB with FIFO replacement
 void addToTLB(int page, int frame) {
 
-  int index;
+  int index; // if already in TLB, break
   for (index = 0; index < TLB_num_entry; index++) {
     if (TLBtable[index][1] == page) {
       break;
     }
   }
 
+  // checks if num of entries is equal to index
   if (index == TLB_num_entry) {
     if (TLB_num_entry < TLB_SIZE) {
       TLBtable[TLB_num_entry][1] = page;
@@ -77,7 +79,7 @@ void addToTLB(int page, int frame) {
       TLBtable[TLB_num_entry-1][2] = frame;
     }
   }
-  else {
+  else { // if index is not equal to number of TLB entries
     for (index = index; index < TLB_num_entry - 1; index++) {
       TLBtable[index][1] = TLBtable[index+1][1];
       TLBtable[index][2] = TLBtable[index+1][2];
@@ -96,7 +98,9 @@ void addToTLB(int page, int frame) {
   }
 }
 
+// reads BACKING_STORE.bin and brings frame into physical memory and page table
 void readBSFile(int page) {
+  // seeks to byte BUFLEN in fBS pointer
   if (fseek(fBS, page * BUFLEN, SEEK_SET) != 0) {
     fprintf(stderr, "Error: can't seek from file\n");
   }
@@ -104,10 +108,12 @@ void readBSFile(int page) {
     fprintf(stderr, "Error: can't read from file\n");
   }
 
+  // load bits into first available frame in physical memory array
   for (int i = 0; i < BUFLEN; i++) {
     phys_mem[first_open_frame][i] = bs_buff[i];
   }
 
+  // load frame num into page table in the first available frame
   pgTbl[first_open_pgTblIdx] = page;
   pgFrames[first_open_pgTblIdx] = first_open_frame;
 
@@ -116,35 +122,40 @@ void readBSFile(int page) {
 
 }
 
+// takes logical address and obtains physical address and its value stored there
 void getPageNums(unsigned log_add) {
+  // get page number and offset from logical address; transform to int
   int page = getpage((int)log_add);
   int offset = getoffset((int)log_add);
 
-  int frame_num = -1;
+  int frame_num = -1; // initialized to -1 to ensure validation of conditions
 
+  // search through TLB for a match
   for (int i = 0; i < TLB_SIZE; i++) {
     if (TLBtable[i][1] == page) {
       TLBtable[i][2] = TLBtable[i][1];
-      TLBHits = TLBHits + 1;
+      TLBHits = TLBHits + 1;  // increment if frame num is extracted
     }
   }
 
+  // checks if frame num wasn't found
   if (frame_num == -1) {
     for (int i = 0; i < first_open_pgTblIdx; i++) {
       if (pgTbl[i] == page) {
-        frame_num = pgFrames[i];
+        frame_num = pgFrames[i];  // extract frame num from page table if found there
       }
     }
     if (frame_num == -1) {
-      readBSFile(page);
+      readBSFile(page);   // page fault; calls function to get frame into physical memory and page table
       pgFaults++;
-      frame_num = first_open_frame - 1;
+      frame_num = first_open_frame - 1;   // sets frame num to current first available frame
     }
   }
 
-  addToTLB(page,frame_num);
-  byte_val = phys_mem[frame_num][offset];
+  addToTLB(page,frame_num);   // calls function to insert page and frame num into TLB
+  byte_val = phys_mem[frame_num][offset];   // frame num and offset used to get signed value stored in address
   printf("frame number: %d\n", frame_num);
+  // produce output of contents
   printf("Virtual address: %d Physical address: %d Value: %d\n", log_add, (frame_num << 8) | offset, byte_val);
 
 }
@@ -175,7 +186,7 @@ int main(int argc, const char* argv[]) {
       //   e.g., address # 25 from addresses.txt will fail the assertion
       // TODO:  add page table code
       // TODO:  add TLB code
-      // check line 132 for page table code and line 90 for TLB code
+      // check line 57 for TLB code and 102 for page table code
 
       int trans_adds = 0;
 
