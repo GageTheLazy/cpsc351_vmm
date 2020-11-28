@@ -54,39 +54,6 @@ signed char byte_val;
 
 FILE *fBS;
 
-void getPageNums(int log_add) {
-  unsigned page = getpage(x);
-  unsigned offset = getoffset(x);
-
-  int frame_num = -1;
-
-  for (int i = 0; i < TLB_SIZE; i++) {
-    if (TLBtable[i][1] == page) {
-      TLBtable[i][2] = TLBtable[i][1];
-      TLBHits = TLBHits + 1;
-    }
-  }
-
-  if (frame_num == -1) {
-    for (int i = 0; i < first_open_pgTblIdx; i++) {
-      if (pgTbl[i] == page) {
-        frame_num = pgFrames[i];
-      }
-    }
-    if (frame_num == -1) {
-      readBSFile(page);
-      pgFaults++;
-      frame_num = first_open_frame - 1;
-    }
-  }
-
-  addToTLB(page,frame_num);
-  byte_val = phys_mem[frame_num][offset];
-  printf("frame number: %d\n", frame_num);
-  printf("Virtual address: %d Physical address: %d Value: %d\n", log_add, (frame_num << 8) | offset, value);
-
-}
-
 void addToTLB(int page, int frame) {
 
   int index;
@@ -149,6 +116,39 @@ void readBSFile(int page) {
 
 }
 
+void getPageNums(unsigned log_add) {
+  int page = getpage((int)log_add);
+  int offset = getoffset((int)log_add);
+
+  int frame_num = -1;
+
+  for (int i = 0; i < TLB_SIZE; i++) {
+    if (TLBtable[i][1] == page) {
+      TLBtable[i][2] = TLBtable[i][1];
+      TLBHits = TLBHits + 1;
+    }
+  }
+
+  if (frame_num == -1) {
+    for (int i = 0; i < first_open_pgTblIdx; i++) {
+      if (pgTbl[i] == page) {
+        frame_num = pgFrames[i];
+      }
+    }
+    if (frame_num == -1) {
+      readBSFile(page);
+      pgFaults++;
+      frame_num = first_open_frame - 1;
+    }
+  }
+
+  addToTLB(page,frame_num);
+  byte_val = phys_mem[frame_num][offset];
+  printf("frame number: %d\n", frame_num);
+  printf("Virtual address: %d Physical address: %d Value: %d\n", log_add, (frame_num << 8) | offset, byte_val);
+
+}
+
 int main(int argc, const char* argv[]) {
   FILE* fadd = fopen("addresses.txt", "r");    // open file addresses.txt  (contains the logical addresses)
   if (fadd == NULL) { fprintf(stderr, "Could not open file: 'addresses.txt'\n");  exit(FILE_ERROR);  }
@@ -174,12 +174,10 @@ int main(int argc, const char* argv[]) {
   // not quite correct -- should search page table before creating a new entry
       //   e.g., address # 25 from addresses.txt will fail the assertion
       // TODO:  add page table code
-
-
-
       // TODO:  add TLB code
+      // check line 132 for page table code and line 90 for TLB code
 
-
+      int trans_adds = 0;
 
   while (frame < FRAME_SIZE) {
 
@@ -195,12 +193,12 @@ int main(int argc, const char* argv[]) {
     assert(physical_add == phys_add);
 
     // todo: read BACKING_STORE and confirm value matches read value from correct.txt
+    getPageNums(logic_add);
+    trans_adds++;
 
     printf("logical: %5u (page: %3u, offset: %3u) ---> physical: %5u -- passed\n", logic_add, page, offset, physical_add);
     if (frame % 5 == 0) { printf("\n"); }
   }
-  fclose(fcorr);
-  fclose(fadd);
 
   // printf("ONLY READ FIRST 20 entries -- TODO: change to read all entries\n\n");
     printf("READ ALL ENTRIES\n\n");
@@ -209,7 +207,19 @@ int main(int argc, const char* argv[]) {
   // printf("!!! This doesn't work passed entry 24 in correct.txt, because of a duplicate page table entry\n");
   // printf("--- you have to implement the PTE and TLB part of this code\n");
 
+  printf("Number of translated addresses = %d\n", trans_adds);
+  double PFrate = pgFaults/(double)trans_adds;
+  double TLBrate = TLBHits/(double)trans_adds;
+
+  printf("Page Faults = %d\n", pgFaults);
+  printf("Page Fault Rate = %.3f\n", PFrate);
+  printf("TLB Hits = %d\n", TLBHits);
+  printf("TLB Hit Rate = %.3f\n", TLBrate);
+
 //  printf("NOT CORRECT -- ONLY READ FIRST 20 ENTRIES... TODO: MAKE IT READ ALL ENTRIES\n");
+  fclose(fcorr);
+  fclose(fadd);
+  fclose(fBS);
 
   printf("\n\t\t...done.\n");
   return 0;
